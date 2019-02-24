@@ -43,10 +43,9 @@ class LaneNetDataset(Dataset):
             return img_list
 
     def __len__(self):
-        return len(self._gt_img_list)
+        return len(self._img_list)
     
     def __getitem__(self, index):
-        VGG_MEAN= np.array([103.939, 116.779, 123.68])
         img_name = self._img_list[index]
         binary_img_name = self._binary_img_list[index]
         instance_img_name = self._instance_img_list[index]
@@ -54,7 +53,6 @@ class LaneNetDataset(Dataset):
         img = cv2.imread(img_name, cv2.IMREAD_COLOR)
         img = cv2.resize(img, (512, 256))
         img = np.asarray(img).astype(np.float32)
-        img -= VGG_MEAN
         img = np.transpose(img, (2, 0, 1))
         img = torch.from_numpy(img)
 
@@ -71,8 +69,10 @@ class LaneNetDataset(Dataset):
         instance_img = cv2.imread(instance_img_name, cv2.IMREAD_UNCHANGED)
         instance_label = cv2.resize(instance_img, (512, 256), interpolation=cv2.INTER_NEAREST)
         instance_label = torch.from_numpy(instance_label.reshape((1, 256, 512)))
+
+        sample = {'input_tensor': img, 'binary_label': binary_label, 'instance_label': instance_label}
         
-        return img, binary_label, instance_label
+        return sample
 
 class HNetDataset(Dataset):
     def __init__(self, json_files):
@@ -111,33 +111,40 @@ class HNetDataset(Dataset):
                     gt_pts_list.append(lane_pts)
         
         return img_list, gt_pts_list
+
+    def __len__(self):
+        return len(self._img_list)
     
     def __getitem__(self, index):
         img_path = self._img_list[index]
-        gt_pts = self._gt_pts_list[index]
-
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = np.transpose(img, (2, 0, 1))
         img = torch.from_numpy(img)
 
+        gt_pts = self._gt_pts_list[index]
         gt_pts = np.array(gt_pts).reshape((-1, 3))
         gt_pts = torch.from_numpy(gt_pts)
-        return img, gt_pts
 
+        sample = {'input_tensor': img, 'gt_points': gt_pts}
+        return sample
 
 if __name__ == '__main__':
     lanenet_dataset = LaneNetDataset('/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/training/train.txt', is_training=True)
-    img, binary_label, instance_label = lanenet_dataset[0]
-    print(img)
-    print(img.shape)
-    print(binary_label)
-    print(binary_label.shape)
-    print(instance_label)
-    print(instance_label.shape)
+    data_loader = DataLoader(lanenet_dataset, batch_size=4, shuffle=True, num_workers=4)
+    for data in data_loader:
+        input_tensor = data['input_tensor']
+        binary_label = data['binary_label']
+        instance_label = data['instance_label']
+        print(input_tensor, input_tensor.size())
+        print(binary_label, binary_label.size())
+        print(instance_label, instance_label.size())
+        break
 
     hnet_dataset = HNetDataset(['/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/label_data_0313.json', '/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/label_data_0531.json', '/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/label_data_0601.json'])
-    img, gt_pts = hnet_dataset[0]
-    print(img)
-    print(img.shape)
-    print(gt_pts)
-    print(gt_pts.shape)
+    data_loader = DataLoader(hnet_dataset, batch_size=1, shuffle=True, num_workers=4)
+    for data in data_loader:
+        input_tensor = data['input_tensor']
+        gt_points = data['gt_points']
+        print(input_tensor, input_tensor.size())
+        print(gt_points, gt_points.size())
+        break

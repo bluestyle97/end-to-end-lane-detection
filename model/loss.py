@@ -24,6 +24,14 @@ def _unsorted_segment_sum(data, segment_ids, num_segments):
         segment_sum[segment_ids[i], :] += data[i, :]
     return segment_sum
 
+def cross_entrpy_loss(pred, label):
+    unique_labels, unique_id, counts = _unique_with_counts(label)
+    inverse_weights = torch.div(1.0, torch.log(torch.add(torch.div(1.0, counts), 1.02)))
+
+    loss_fn = nn.CrossEntropyLoss(weight=inverse_weights)
+    loss = loss_fn(pred, label)
+    return loss
+
 def discriminative_loss_single(
         prediction,
         label,
