@@ -17,7 +17,7 @@ class LaneNetDataset(Dataset):
         if self._is_training:
             self._img_list, self._binary_img_list, self._instance_img_list = self._init_dataset(info_file)
         else:
-            self._img_list = self._init_dataset_testing(info_file)
+            self._img_list = self._init_dataset(info_file)
     
     def _init_dataset(self, info_file):
         assert os.path.exists(info_file), 'File {} does not exist.'.format(info_file)
@@ -47,8 +47,6 @@ class LaneNetDataset(Dataset):
     
     def __getitem__(self, index):
         img_name = self._img_list[index]
-        binary_img_name = self._binary_img_list[index]
-        instance_img_name = self._instance_img_list[index]
 
         img = cv2.imread(img_name, cv2.IMREAD_COLOR)
         img = cv2.resize(img, (512, 256))
@@ -57,7 +55,10 @@ class LaneNetDataset(Dataset):
         img = torch.from_numpy(img)
 
         if not self._is_training:
-            return img
+            return {'input_tensor': img}
+
+        binary_img_name = self._binary_img_list[index]
+        instance_img_name = self._instance_img_list[index]
 
         binary_img = cv2.imread(binary_img_name, cv2.IMREAD_COLOR)
         binary_label = np.zeros([binary_img.shape[0], binary_img.shape[1]], dtype=np.uint8)
@@ -71,46 +72,59 @@ class LaneNetDataset(Dataset):
         instance_label = torch.from_numpy(instance_label.reshape((1, 256, 512)))
 
         sample = {'input_tensor': img, 'binary_label': binary_label, 'instance_label': instance_label}
-        
         return sample
 
 class HNetDataset(Dataset):
-    def __init__(self, json_files):
+    def __init__(self, json_files, is_training=True):
+        self._is_training = is_training
         self._img_list, self._gt_pts_list = self._init_dataset(json_files)
 
     def _init_dataset(self, json_files):
         img_list = []
         gt_pts_list = []
 
-        for json_file in json_files:
-            assert os.path.exists(json_file), 'File {} does not exist!'.format(json_file)
+        if self._is_training:
+            for json_file in json_files:
+                assert os.path.exists(json_file), 'File {} does not exist!'.format(json_file)
 
-            src_dir = os.path.split(json_file)[0]
-            with open(json_file, 'r') as file:
-                for line in file:
-                    info_dict = json.loads(line)
-                    img_path = os.path.join(src_dir, info_dict['raw_file'])
-                    assert os.path.exists(img_path), 'File {} does not exist!'.format(img_path)
+                src_dir = os.path.split(json_file)[0]
+                with open(json_file, 'r') as file:
+                    for line in file:
+                        info_dict = json.loads(line)
+                        img_path = os.path.join(src_dir, info_dict['raw_file'])
+                        assert os.path.exists(img_path), 'File {} does not exist!'.format(img_path)
 
-                    img_list.append(img_path)
+                        img_list.append(img_path)
 
-                    h_samples = info_dict['h_samples']
-                    lanes = info_dict['lanes']
+                        h_samples = info_dict['h_samples']
+                        lanes = info_dict['lanes']
 
-                    lane_pts = []
-                    for lane in lanes:
-                        assert len(h_samples) == len(lane)
-                        for x, y in zip(lane, h_samples):
-                            if x == -2:
+                        lane_pts = []
+                        for lane in lanes:
+                            assert len(h_samples) == len(lane)
+                            for x, y in zip(lane, h_samples):
+                                if x == -2:
+                                    continue
+                                lane_pts.append([x, y, 1])
+                            if not lane_pts:
                                 continue
-                            lane_pts.append([x, y, 1])
-                        if not lane_pts:
-                            continue
-                        if len(lane_pts) <= 3:
-                            continue
-                    gt_pts_list.append(lane_pts)
-        
-        return img_list, gt_pts_list
+                            if len(lane_pts) <= 3:
+                                continue
+                        gt_pts_list.append(lane_pts)
+            return img_list, gt_pts_list
+        else:
+            for json_file in json_files:
+                assert os.path.exists(json_file), 'File {} does not exist!'.format(json_file)
+
+                src_dir = os.path.split(json_file)[0]
+                with open(json_file, 'r') as file:
+                    for line in file:
+                        info_dict = json.loads(line)
+                        img_path = os.path.join(src_dir, info_dict['raw_file'])
+                        assert os.path.exists(img_path), 'File {} does not exist!'.format(img_path)
+
+                        img_list.append(img_path)
+            return img_list
 
     def __len__(self):
         return len(self._img_list)
@@ -118,20 +132,26 @@ class HNetDataset(Dataset):
     def __getitem__(self, index):
         img_path = self._img_list[index]
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        img = cv2.resize(img, (128, 64))
+        img = np.asarray(img).astype(np.float32)
         img = np.transpose(img, (2, 0, 1))
         img = torch.from_numpy(img)
+
+        if not self._is_training:
+            return {'input_tensor': img}
 
         gt_pts = self._gt_pts_list[index]
         gt_pts = np.array(gt_pts).reshape((-1, 3))
         gt_pts = torch.from_numpy(gt_pts)
 
         sample = {'input_tensor': img, 'gt_points': gt_pts}
+        
         return sample
 
 if __name__ == '__main__':
-    lanenet_dataset = LaneNetDataset('/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/training/train.txt', is_training=True)
-    data_loader = DataLoader(lanenet_dataset, batch_size=4, shuffle=True, num_workers=4)
-    for data in data_loader:
+    lanenet_dataset = LaneNetDataset('/Users/xujiale/Data/tusimple/train_set/training/train.txt', is_training=True)
+    data_loader = DataLoader(lanenet_dataset, batch_size=4, shuffle=True, num_workers=0)
+    for i, data in enumerate(data_loader):
         input_tensor = data['input_tensor']
         binary_label = data['binary_label']
         instance_label = data['instance_label']
@@ -140,8 +160,11 @@ if __name__ == '__main__':
         print(instance_label, instance_label.size())
         break
 
-    hnet_dataset = HNetDataset(['/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/label_data_0313.json', '/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/label_data_0531.json', '/Users/xujiale/Projects/LaneDetection/data/tusimple/train_set/label_data_0601.json'])
-    data_loader = DataLoader(hnet_dataset, batch_size=1, shuffle=True, num_workers=4)
+    hnet_dataset = HNetDataset([
+        '/Users/xujiale/Data/tusimple/train_set/label_data_0313.json',
+        '/Users/xujiale/Data/tusimple/train_set/label_data_0531.json',
+        '/Users/xujiale/Data/tusimple/train_set/label_data_0601.json'], is_training=True)
+    data_loader = DataLoader(hnet_dataset, batch_size=1, shuffle=True, num_workers=0)
     for data in data_loader:
         input_tensor = data['input_tensor']
         gt_points = data['gt_points']

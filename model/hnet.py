@@ -36,9 +36,8 @@ class HNet(nn.Module):
             nn.MaxPool2d(2))
 
         self._fc = nn.Sequential(
-            nn.Linear(64 * 16 * 8, 1024), 
-            nn.BatchNorm1d(1024), 
-            nn.ReLU(inplace=True), 
+            nn.Linear(64 * 16 * 8, 1024),
+            nn.ReLU(inplace=True),
 
             nn.Linear(1024, 6))
     

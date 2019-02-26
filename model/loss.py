@@ -24,15 +24,30 @@ def _unsorted_segment_sum(data, segment_ids, num_segments):
         segment_sum[segment_ids[i], :] += data[i, :]
     return segment_sum
 
-def cross_entrpy_loss(pred, label):
-    unique_labels, unique_id, counts = _unique_with_counts(label)
+def _cross_entropy_loss_single(pred, label):
+    unique_labels, unique_id, counts = _unique_with_counts(label.view(1, -1).squeeze())
     inverse_weights = torch.div(1.0, torch.log(torch.add(torch.div(1.0, counts), 1.02)))
 
     loss_fn = nn.CrossEntropyLoss(weight=inverse_weights)
+
+    pred = pred.transpose(0, 2).contiguous().view(-1, 2)
+    label = label.transpose(0, 2).contiguous().view(-1, 1).squeeze().to(torch.long)
+
     loss = loss_fn(pred, label)
     return loss
 
-def discriminative_loss_single(
+def cross_entropy_loss(pred, label):
+    batch_size = pred.size()[0]
+    loss_acc = torch.zeros(1, dtype=torch.float32)
+
+    for i in range(batch_size):
+        loss = _cross_entropy_loss_single(pred[i], label[i])
+        loss_acc += loss
+    
+    loss = torch.div(loss_acc, batch_size).squeeze()
+    return loss
+
+def _discriminative_loss_single(
         prediction,
         label,
         feature_dim,
@@ -111,7 +126,7 @@ def discriminative_loss(
     l_reg_acc = torch.zeros(1, dtype=torch.float32)
 
     for i in range(batch_size):
-        loss_s, l_var_s, l_dist_s, l_reg_s = discriminative_loss_single(pred[i], label[i], feature_dim, image_shape, delta_v, delta_d, param_var, param_dist, param_reg)
+        loss_s, l_var_s, l_dist_s, l_reg_s = _discriminative_loss_single(pred[i], label[i], feature_dim, image_shape, delta_v, delta_d, param_var, param_dist, param_reg)
         loss_acc += loss_s
         l_var_acc += l_var_s
         l_dist_acc += l_dist_s
@@ -124,12 +139,14 @@ def discriminative_loss(
 
     return loss, l_var, l_dist, l_reg
 
-def hnet_loss(pts_gt, trans_coef):
+def _hnet_loss_single(pts_gt, trans_coef):
+    pts_gt = pts_gt.view(-1, 3)
+    trans_coef = trans_coef.view(6)
     trans_coef = torch.cat([trans_coef, torch.tensor([1.0])])
     H_indices = torch.tensor([0, 1, 2, 4, 5, 7, 8], dtype=torch.long)
     H = torch.zeros(9, dtype=torch.float32).scatter_(0, H_indices, trans_coef).view(3, 3)
 
-    pts_gt = pts_gt.t()     # (3 * n)
+    pts_gt = pts_gt.view(-1, 3).to(torch.float32).t()     # (3 * n)
     pts_projected = torch.mm(H, pts_gt)
 
     # least squares closed-form solution
@@ -148,6 +165,18 @@ def hnet_loss(pts_gt, trans_coef):
 
     return loss
 
+def hnet_loss(pts_batch, coef_batch):
+    batch_size = coef_batch.size()[0]
+
+    loss_acc = torch.zeros(1, dtype=torch.float32)
+
+    for i in range(batch_size):
+        loss_s = _hnet_loss_single(pts_batch[i], coef_batch[i])
+        loss_acc += loss_s
+
+    loss = torch.div(loss_acc, batch_size).squeeze()
+    return loss
+
 if __name__ == '__main__':
     pred = torch.rand(4, 2, 4, 4, dtype=torch.float32)
     label = torch.randint(3, (4, 1, 4, 4), dtype=torch.long)
@@ -158,10 +187,10 @@ if __name__ == '__main__':
     param_val = 1.0
     param_dist = 1.0
     param_reg = 0.001
-    loss, l_val, l_dist, l_reg = discriminative_loss_single(pred[0], label[0], feature_dim, image_shape, delta_v, delta_d, param_val, param_dist, param_reg)
+    loss, l_val, l_dist, l_reg = _discriminative_loss_single(pred[0], label[0], feature_dim, image_shape, delta_v, delta_d, param_val, param_dist, param_reg)
     print(loss, l_val, l_dist, l_reg)
 
     pts = torch.rand(10, 3, dtype=torch.float32)
     coef = torch.rand(6, dtype=torch.float32)
-    loss = hnet_loss(pts, coef)
+    loss = _hnet_loss_single(pts, coef)
     print(loss)
