@@ -4,7 +4,7 @@ import numpy as np
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from utils.config import CFG
 
 try:
     from cv2 import cv2
@@ -38,19 +38,20 @@ class LaneNetDataset(Dataset):
             img_list = []
             with open(info_file, 'r') as file:
                 for line in file:
-                    tmp = line.strip()
-                    img_list.append(tmp)
+                    tmp = line.strip().split()
+                    img_list.append(tmp[0])
             return img_list
 
     def __len__(self):
         return len(self._img_list)
-    
+
     def __getitem__(self, index):
         img_name = self._img_list[index]
 
         img = cv2.imread(img_name, cv2.IMREAD_COLOR)
-        img = cv2.resize(img, (512, 256))
+        img = cv2.resize(img, (512, 256), interpolation=cv2.INTER_LINEAR)
         img = np.asarray(img).astype(np.float32)
+        img -= CFG.VGG_MEAN
         img = np.transpose(img, (2, 0, 1))
         img = torch.from_numpy(img)
 
@@ -128,12 +129,13 @@ class HNetDataset(Dataset):
 
     def __len__(self):
         return len(self._img_list)
-    
+
     def __getitem__(self, index):
         img_path = self._img_list[index]
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        img = cv2.resize(img, (128, 64))
+        img = cv2.resize(img, (128, 64), interpolation=cv2.INTER_LINEAR)
         img = np.asarray(img).astype(np.float32)
+        img -= CFG.VGG_MEAN
         img = np.transpose(img, (2, 0, 1))
         img = torch.from_numpy(img)
 

@@ -1,40 +1,14 @@
-import os
-import re
 import time
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-from easydict import EasyDict as edict
 
 from model.lanenet import LaneNet
 from model.hnet import HNet
 from model.loss import cross_entropy_loss, discriminative_loss, hnet_loss
 from utils.dataset import LaneNetDataset, HNetDataset
-
-CFG = edict()
-CFG.EPOCH = 10000
-CFG.DEFAULT_PATH = './save/'
-
-CFG.LANENET = edict()
-CFG.LANENET.LR = 5e-4
-CFG.LANENET.BATCH_SIZE = 8
-CFG.LANENET.IMAGE_W = 512
-CFG.LANENET.IMAGE_H = 256
-CFG.LANENET.DELTA_V = 0.5
-CFG.LANENET.DELTA_D = 3.0
-CFG.LANENET.PARAM_VAR = 1.0
-CFG.LANENET.PARAM_DIST = 1.0
-CFG.LANENET.PARAM_REG = 0.01
-
-CFG.HNET = edict()
-CFG.HNET.LR = 5e-5
-CFG.HNET.BATCH_SIZE = 10
-CFG.HNET.IMAGE_H = 128
-CFG.HNET.IMAGE_W = 64
-
-VGG_MEAN = [103.939, 116.779, 123.68]
+from utils.config import CFG
 
 def minmax_scale(input_arr):
     min_val = torch.min(input_arr)
@@ -64,7 +38,7 @@ def train_lanenet(
         batch_size=CFG.LANENET.BATCH_SIZE,
         epoch=CFG.EPOCH, 
         weights_path=CFG.DEFAULT_PATH):
-    data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=0)
+    data_loader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=0)
     print('data loaded')
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
