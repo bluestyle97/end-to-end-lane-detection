@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="c9c30dba-124e-44ee-9133-988d8ae24c9b" name="AI Cluster" url="http://10.19.124.11">
+        <fileTransfer host="10.19.124.11" port="22316" rootFolder="/root" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22316" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
