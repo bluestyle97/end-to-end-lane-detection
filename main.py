@@ -78,3 +78,7 @@ def init_args():
     parser.add_argument('--model_save_step', type=int, default=5000, help='save model checkpoints every so many steps')
 
     return parser.parse_args()
+
+if __name__ == '__main__':
+    config = init_args()
+    main(config)
