@@ -4,15 +4,14 @@ import torch.nn.functional as F
 
 
 class LanenetLoss(object):
-    def __init__(self):
-        self.device = torch.device('cpu')
-
-    @staticmethod
-    def unique_with_counts(input):
+    def unique_with_counts(self, input):
         '''
         :param input: 1-D tensor.
         :return: unique elements, unique id, counts
         '''
+        if torch.cuda.is_available():
+            input = input.cuda()
+
         unique_elements, unique_id = input.unique(sorted=True, return_inverse=True)
         unique_elements_num = unique_elements.numel()
         origin_elements_num = input.numel()
@@ -21,20 +20,27 @@ class LanenetLoss(object):
         counts = torch.sum(inp_repeat==ele_repeat, dim=1).view(unique_elements_num).float()
         return unique_elements, unique_id, counts
 
-    @staticmethod
-    def unsorted_segment_sum(data, segment_ids, num_segments):
+    def unsorted_segment_sum(self, data, segment_ids, num_segments):
         assert data.size()[0] == segment_ids.size()[0]
+
+        if torch.cuda.is_available():
+            data = data.cuda()
+            segment_ids = segment_ids.cuda()
 
         segment_sum = torch.zeros(num_segments, data.size()[1], dtype=data.dtype)
         for i in range(data.size()[0]):
-            segment_sum[segment_ids[i], :] += data[i, :]
-        return segment_sum
+            segment_sum[segment_ids[i], :].add_(data[i, :].cpu())
+        return segment_sum.cuda()
 
     def cross_entropy_loss_single(self, pred, label):
         '''
         :param pred: 2xHxW tensor.
         :param label: 1xHxW tensor.
         '''
+        if torch.cuda.is_available():
+            pred = pred.cuda()
+            label = label.cuda()
+
         unique_labels, unique_id, counts = self.unique_with_counts(label.view(label.numel()))
         inverse_weights = torch.div(
             torch.tensor(1.0, dtype=torch.float32),
@@ -54,6 +60,10 @@ class LanenetLoss(object):
         :param pred: Bx2xHxW tensor.
         :param label: Bx1xHxW tensor.
         '''
+        if torch.cuda.is_available():
+            pred = pred.cuda()
+            label = label.cuda()
+
         batch_size = pred.size()[0]
         loss_acc = torch.zeros(1, dtype=torch.float32)
 
@@ -73,6 +83,10 @@ class LanenetLoss(object):
             param_var,
             param_dist,
             param_reg):
+        if torch.cuda.is_available():
+            prediction = prediction.cuda()
+            label = label.cuda()
+
         label = label.view(label.numel())
         pred = prediction.transpose(0, 2).contiguous().view(-1, feature_dim)
 
@@ -101,7 +115,7 @@ class LanenetLoss(object):
         mu_diff = mu_band_rep - mu_interleaved_rep
 
         intermediate_tensor = torch.sum(torch.abs(mu_diff), dim=1, keepdim=True)
-        bool_mask = torch.eq(intermediate_tensor, torch.zeros(1, dtype=torch.float32)).view(
+        bool_mask = torch.eq(intermediate_tensor, torch.zeros(1, dtype=torch.float32).cuda()).view(
             intermediate_tensor.size()[0])
         mu_diff_bool = mu_diff[bool_mask == 0, :]
 
@@ -134,6 +148,10 @@ class LanenetLoss(object):
             param_var,
             param_dist,
             param_reg):
+        if torch.cuda.is_available():
+            pred = pred.cuda()
+            label = label.cuda()
+
         batch_size = pred.size()[0]
 
         loss_acc = torch.zeros(batch_size, dtype=torch.float32)
@@ -155,8 +173,14 @@ class LanenetLoss(object):
 
 
 class HNetLoss(object):
-    @staticmethod
-    def hnet_loss_single(pts_gt, trans_coef):
+    def __init__(self):
+        self.device = torch.device('cpu')
+
+    def hnet_loss_single(self, pts_gt, trans_coef):
+        if torch.cuda.is_available():
+            pts_gt = pts_gt.cuda()
+            trans_coef = trans_coef.cuda()
+
         pts_gt = pts_gt.view(-1, 3)
         trans_coef = trans_coef.view(6)
         trans_coef = torch.cat([trans_coef, torch.tensor([1.0])])
@@ -184,6 +208,10 @@ class HNetLoss(object):
         return loss
 
     def hnet_loss(self, pts_batch, coef_batch):
+        if torch.cuda.is_available():
+            pts_batch = pts_batch.cuda()
+            coef_batch = coef_batch.cuda()
+
         batch_size = coef_batch.size()[0]
 
         loss_acc = torch.zeros(batch_size, dtype=torch.float32)

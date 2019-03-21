@@ -5,7 +5,7 @@
       <paths name="AI Cluster">
         <serverdata>
           <mappings>
-            <mapping deploy="/xjl-lane-detection/LaneDetection" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/lane-detection/LaneDetection" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

@@ -68,8 +68,13 @@ def process_json_file(json_file_path, src_dir, ori_dst_dir, binary_dst_dir, inst
             dst_instance_image_path = ops.join(instance_dst_dir, image_name_new)
             dst_rgb_image_path = ops.join(ori_dst_dir, image_name_new)
 
+            dst_binary_image = cv2.resize(dst_binary_image, (512, 256), interpolation=cv2.INTER_NEAREST)
             cv2.imwrite(dst_binary_image_path, dst_binary_image)
+
+            dst_instance_image = cv2.resize(dst_instance_image, (512, 256), interpolation=cv2.INTER_NEAREST)
             cv2.imwrite(dst_instance_image_path, dst_instance_image)
+
+            src_image = cv2.resize(src_image, (512, 256), interpolation=cv2.INTER_LINEAR)
             cv2.imwrite(dst_rgb_image_path, src_image)
 
             print('Process {:s} success'.format(image_name))
@@ -99,7 +104,6 @@ def gen_train_sample(src_dir, b_gt_image_dir, i_gt_image_dir, image_dir):
             else:
                 info = '{:s} {:s} {:s}'.format(image_path, binary_gt_image_path, instance_gt_image_path)
                 file.write(info + '\n')
-    return
 
 
 def process_tusimple_dataset(src_dir):
@@ -136,7 +140,7 @@ def process_tusimple_dataset(src_dir):
 
     gen_train_sample(src_dir, gt_binary_dir, gt_instance_dir, gt_image_dir)
 
+
 if __name__ == '__main__':
     args = init_args()
-
     process_tusimple_dataset(args.src_dir)

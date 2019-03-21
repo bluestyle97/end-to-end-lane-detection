@@ -9,10 +9,10 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 
-from model.lanenet import LaneNet
-from model.hnet import HNet
-from model.loss import LanenetLoss, HNetLoss
-from model.cluster import LaneNetCluster
+from net.lanenet import LaneNet
+from net.hnet import HNet
+from net.loss import LanenetLoss, HNetLoss
+from net.cluster import LaneNetCluster
 
 
 VGG_MEAN = [103.939, 116.779, 123.68]
@@ -93,11 +93,14 @@ class Solver(object):
         binary_seg_logits = net_output['binary_seg_logits']
         binary_loss = loss_fn.cross_entropy_loss(binary_seg_logits, binary_label)
 
+        print('binary loss')
+
         pixel_embedding = net_output['instance_seg_logits']
         feature_dim = pixel_embedding.size()[1]
         disc_loss, _, _, _ = loss_fn.discriminative_loss(pixel_embedding, instance_label, feature_dim,
                                                          self.delta_v, self.delta_d, self.param_var,
                                                          self.param_dist, self.param_reg)
+        print('discriminative loss')
         total_loss = 0.5 * binary_loss + 0.5 * disc_loss
         return total_loss, binary_loss, disc_loss
 
@@ -132,16 +135,14 @@ class Solver(object):
                     data_iter = iter(self.data_loader)
                     batch_data = next(data_iter)
 
-                img_data = batch_data['input_tensor']
-                binary_label = batch_data['binary_label']
-                instance_label = batch_data['instance_label']
-
-                img_data.to(self.device, torch.float32)
-                binary_label.to(self.device, torch.long)
-                instance_label.to(self.device, torch.long)
+                img_data = batch_data['input_tensor'].to(self.device)
+                binary_label = batch_data['binary_label'].to(self.device)
+                instance_label = batch_data['instance_label'].to(self.device)
 
                 net_output = self.lanenet(img_data)
                 total_loss, binary_loss, disc_loss = self.compute_lanenet_loss(net_output, binary_label, instance_label)
+
+                print('loss computed')
 
                 binary_seg_pred = net_output['binary_seg_pred']
                 pixel_embedding = net_output['instance_seg_logits']
@@ -156,8 +157,10 @@ class Solver(object):
                     acc += TP * 1.0 / union
                 acc /= batch_size
 
+                print('start backward')
                 self.optimizer.zero_grad()
                 total_loss.backward()
+                print('end backward')
                 self.optimizer.step()
 
                 log = {}
@@ -199,7 +202,7 @@ class Solver(object):
 
                 if (i+1) % self.model_save_step == 0:
                     torch.save(self.lanenet.state_dict(), os.path.join(self.model_dir, 'lanenet-{}.pt'.format(i+1)))
-                    print('Save model checkpoints into {}...'.format(self.model_dir))
+                    print('Save net checkpoints into {}...'.format(self.model_dir))
 
         else:
             data_iter = iter(self.data_loader)
@@ -246,7 +249,7 @@ class Solver(object):
                     if not os.path.exists(hnet_save_dir):
                         os.makedirs(hnet_save_dir)
                     torch.save(self.hnet.state_dict(), os.path.join(hnet_save_dir, '{}-hnet.pt'.format(i+1)))
-                    print('Save model checkpoints into {}...'.format(hnet_save_dir))
+                    print('Save net checkpoints into {}...'.format(hnet_save_dir))
 
     def test(self):
 

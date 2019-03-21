@@ -9,9 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 VGG_MEAN = [103.939, 116.779, 123.68]
 
 class LaneNetDataset(Dataset):
-    def __init__(self, info_file, image_w=512, image_h=256, is_training=True):
-        self.image_w = image_w
-        self.image_h = image_h
+    def __init__(self, info_file, is_training=True):
         self.is_training = is_training
         if self.is_training:
             self.img_list, self.binary_img_list, self.instance_img_list = self.init_dataset(info_file)
@@ -48,7 +46,6 @@ class LaneNetDataset(Dataset):
         img_name = self.img_list[index]
 
         img = cv2.imread(img_name, cv2.IMREAD_COLOR)
-        img = cv2.resize(img, (self.image_w, self.image_h), interpolation=cv2.INTER_LINEAR)
         img = np.asarray(img).astype(np.float32)
         img -= VGG_MEAN
         img = np.transpose(img, (2, 0, 1))
@@ -64,20 +61,16 @@ class LaneNetDataset(Dataset):
         binary_label = np.zeros([binary_img.shape[0], binary_img.shape[1]], dtype=np.uint8)
         idx = np.where((binary_img[:, :, :] != [0, 0, 0]).all(axis=2))
         binary_label[idx] = 1
-        binary_label = cv2.resize(binary_label, (self.image_w, self.image_h), interpolation=cv2.INTER_NEAREST)
-        binary_label = torch.from_numpy(binary_label.reshape(1, self.image_h, self.image_w))
+        binary_label = torch.from_numpy(binary_label.reshape(1, 256, 512)).to(torch.long)
 
         instance_img = cv2.imread(instance_img_name, cv2.IMREAD_UNCHANGED)
-        instance_label = cv2.resize(instance_img, (self.image_w, self.image_h), interpolation=cv2.INTER_NEAREST)
-        instance_label = torch.from_numpy(instance_label.reshape((1, self.image_h, self.image_w)))
+        instance_label = torch.from_numpy(instance_img.reshape((1, 256, 512))).to(torch.long)
 
         sample = {'input_tensor': img, 'binary_label': binary_label, 'instance_label': instance_label}
         return sample
 
 class HNetDataset(Dataset):
-    def __init__(self, json_files, image_w=128, image_h=64, is_training=True):
-        self.image_w = 128
-        self.image_h = 64
+    def __init__(self, json_files, is_training=True):
         self.is_training = is_training
         self.img_list, self.gt_pts_list = self._init_dataset(json_files)
 
@@ -134,7 +127,6 @@ class HNetDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.img_list[index]
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        img = cv2.resize(img, (self.image_w, self.image_h), interpolation=cv2.INTER_LINEAR)
         img = np.asarray(img).astype(np.float32)
         img -= VGG_MEAN
         img = np.transpose(img, (2, 0, 1))
@@ -151,19 +143,19 @@ class HNetDataset(Dataset):
         
         return sample
 
-def get_lanenet_loader(dataset_dir, batch_size, image_w, image_h, is_training=True):
+def get_lanenet_loader(dataset_dir, batch_size, is_training=True):
     info_file = os.path.join(dataset_dir, 'train.txt')
-    dataset = LaneNetDataset(info_file, image_w, image_h, is_training)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    dataset = LaneNetDataset(info_file, is_training)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     return data_loader
 
-def get_hnet_loader(dataset_dir, batch_size, image_w, image_h, is_training=True):
+def get_hnet_loader(dataset_dir, batch_size, is_training=True):
     json_files = [
                 os.path.join(dataset_dir, 'label_data_0313.json'),
                 os.path.join(dataset_dir, 'label_data_0531.json'),
                 os.path.join(dataset_dir, 'label_data_0601.json'),]
-    dataset = HNetDataset(json_files, image_w, image_h, is_training)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    dataset = HNetDataset(json_files, is_training)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     return data_loader
 
 if __name__ == '__main__':
